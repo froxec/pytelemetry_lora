@@ -31,7 +31,7 @@ class Pytelemetry:
                  False otherwise
 
     """
-    def __init__(self, transport):
+    def __init__(self, transport,  addr, freq=868):
         """
             Creates a new instance of the Pytelemetry class.
 
@@ -41,6 +41,8 @@ class Pytelemetry:
 
         self.callbacks = dict()
         self.default_callback = None
+        self.freq = freq
+        self.address = addr
 
         if _telemetry_use_c_api:
             self.api = TelemetryCBinding(transport,self._on_frame)
@@ -69,11 +71,11 @@ about the transport and protocol behavior, such as:
 
         return d
 
-    def publish(self, topic, data, datatype):
+    def publish(self, topic, address, freq, data, datatype):
         """
 
         """
-        self.api.publish(topic,data,datatype)
+        self.api.publish(topic, self.address,  address, self.freq,  freq, data,datatype)
 
     # subscribe a callback to topic
     # Subscribing to None will call that function for any unsubscribed topic

@@ -95,8 +95,24 @@ class Telemetry:
 
         return frame
 
+    def _add_prefix(self, frame, sending_address, receiving_address, sending_freq, receiving_freq):
+        recv_offset_frequence = int(receiving_freq) - (850 if int(receiving_freq) > 850 else 410)
+        send_offset_frequence = int(sending_freq) - (850 if int(sending_freq) > 850 else 410)
+        #
+        # the sending message format
+        #
+        #         receiving node              receiving node                   receiving node           own high 8bit           own low 8bit                 own
+        #         high 8bit address           low 8bit address                    frequency                address                 address                  frequency
+        prefix = bytes([int(receiving_address) >> 8]) + bytes([int(receiving_address) & 0xff]) + bytes(
+            [int(recv_offset_frequence)]) \
+                 + bytes([int(sending_address) >> 8]) + bytes([int(sending_address) & 0xff]) + bytes(
+            [int(send_offset_frequence)])
+
+        frame = bytearray(prefix + frame)
+
+        return frame
     def _decode_frame(self, frame):
-        if len(frame) < 2:
+        if len(frame) < 8:
             return
 
         # compute local crc
@@ -117,7 +133,7 @@ class Telemetry:
 
         # unpack header
         try:
-            header, = unpack_from("<H", frame)
+            addr_freq, header, = unpack_from("<6sH", frame)
         except struct.error as e:
             self.log_rx.error("Could not unpack header in frame {1} : {0} " % (e,hexlify(frame)))
             self.rx_corrupted_header += 1
@@ -130,7 +146,7 @@ class Telemetry:
 
         # locate EOL
         try:
-            i = frame.index(0, 2, -2)
+            i = frame.index(0, 8, -2)
         except:
             self.log_rx.warn("topic EOL not found for {0}"
                              .format(hexlify(frame)))
@@ -139,11 +155,11 @@ class Telemetry:
 
         # decode topic
         try:
-            topic = frame[2:i].decode("utf8")
+            topic = frame[8:i].decode("utf8")
         except UnicodeError as e:
             self.log_rx.warning("Decoding error for topic. %s. Using 'replace' option." % e)
             self.rx_corrupted_topic += 1
-            topic = frame[2:i].decode("utf8",errors='replace')
+            topic = frame[8:i].decode("utf8",errors='replace')
 
         # Find type from header
         _type = self.rtypes[header]
@@ -179,7 +195,7 @@ class Telemetry:
 
         return topic, data
 
-    def publish(self, topic, data, datatype):
+    def publish(self, topic, sending_address, receiving_address, sending_freq, receiving_freq, data, datatype):
         # header
         if not datatype in self.types:
             self.log_rx.error("Provided datatype {0} not found for ({1}, {2})".format(datatype, topic, data))
@@ -190,6 +206,9 @@ class Telemetry:
 
         # bytestuff
         frame = self.delimiter.encode(frame)
+
+        # add prefix
+        frame = self._add_prefix(frame, sending_address, receiving_address, sending_freq, receiving_freq,)
 
         # send
         if self.transport.writeable():
