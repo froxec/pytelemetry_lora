@@ -112,7 +112,7 @@ class Telemetry:
 
         return frame
     def _decode_frame(self, frame):
-        if len(frame) < 8:
+        if len(frame) < 2:
             return
 
         # compute local crc
@@ -133,7 +133,7 @@ class Telemetry:
 
         # unpack header
         try:
-            addr_freq, header, = unpack_from("<6sH", frame)
+            header, = unpack_from("<H", frame)
         except struct.error as e:
             self.log_rx.error("Could not unpack header in frame {1} : {0} " % (e,hexlify(frame)))
             self.rx_corrupted_header += 1
@@ -146,7 +146,7 @@ class Telemetry:
 
         # locate EOL
         try:
-            i = frame.index(0, 8, -2)
+            i = frame.index(0, 2, -2)
         except:
             self.log_rx.warn("topic EOL not found for {0}"
                              .format(hexlify(frame)))
@@ -155,11 +155,11 @@ class Telemetry:
 
         # decode topic
         try:
-            topic = frame[8:i].decode("utf8")
+            topic = frame[2:i].decode("utf8")
         except UnicodeError as e:
             self.log_rx.warning("Decoding error for topic. %s. Using 'replace' option." % e)
             self.rx_corrupted_topic += 1
-            topic = frame[8:i].decode("utf8",errors='replace')
+            topic = frame[2:i].decode("utf8",errors='replace')
 
         # Find type from header
         _type = self.rtypes[header]
@@ -195,7 +195,7 @@ class Telemetry:
 
         return topic, data
 
-    def publish(self, topic, sending_address, receiving_address, sending_freq, receiving_freq, data, datatype):
+    def publish(self, topic, data, datatype, sending_address, receiving_address, sending_freq, receiving_freq):
         # header
         if not datatype in self.types:
             self.log_rx.error("Provided datatype {0} not found for ({1}, {2})".format(datatype, topic, data))
@@ -208,7 +208,8 @@ class Telemetry:
         frame = self.delimiter.encode(frame)
 
         # add prefix
-        frame = self._add_prefix(frame, sending_address, receiving_address, sending_freq, receiving_freq,)
+        if sending_address != None and receiving_address != None and sending_freq != None and receiving_freq != None:
+            frame = self._add_prefix(frame, sending_address, receiving_address, sending_freq, receiving_freq)
 
         # send
         if self.transport.writeable():

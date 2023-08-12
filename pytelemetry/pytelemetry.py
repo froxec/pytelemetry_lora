@@ -1,6 +1,7 @@
 from pytelemetry.telemetry.telemetry import Telemetry
 from pytelemetry.telemetry.c_binding import TelemetryCBinding
 from pytelemetry.remoting import translate
+import warnings
 
 __all__ = ['Pytelemetry']
 
@@ -31,7 +32,7 @@ class Pytelemetry:
                  False otherwise
 
     """
-    def __init__(self, transport,  addr, freq=868):
+    def __init__(self, transport,  addr=None, freq=None):
         """
             Creates a new instance of the Pytelemetry class.
 
@@ -71,11 +72,15 @@ about the transport and protocol behavior, such as:
 
         return d
 
-    def publish(self, topic, address, freq, data, datatype):
+    def publish(self, topic, data, datatype, address, freq):
         """
 
         """
-        self.api.publish(topic, self.address,  address, self.freq,  freq, data,datatype)
+        if (self.address is None or self.freq is  None) and (address is not None or freq is not None):
+            warnings.warn("Warning! if you want to send data to specified address you have to also specify {0}.address and"
+                          "{0}.freq".format(self))
+
+        self.api.publish(topic, data, datatype, self.address,  address, self.freq,  freq)
 
     # subscribe a callback to topic
     # Subscribing to None will call that function for any unsubscribed topic
